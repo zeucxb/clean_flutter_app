@@ -20,6 +20,15 @@ void main() {
   });
 
   group('post', () {
+    PostExpectation _mockRequest() => when(client.post(any, headers: anyNamed('headers'), body: anyNamed('body')));
+
+    void mockResponse(int statusCode, {String body = '{"any_key":"any_value"}'}) =>
+        _mockRequest().thenAnswer((_) async => Response(body, statusCode));
+
+    setUp(() {
+      mockResponse(200);
+    });
+
     test('Should call post with correct values', () async {
       await sut.request(url: url, method: 'post', body: {'any_key': 'any_value'});
 
@@ -45,6 +54,36 @@ void main() {
         ),
       );
     });
+
+    test('Should return data if post returns 200', () async {
+      final response = await sut.request(url: url, method: 'post');
+
+      expect(response, {'any_key': 'any_value'});
+    });
+
+    test('Should return null if post returns 200 without data', () async {
+      mockResponse(200, body: '');
+
+      final response = await sut.request(url: url, method: 'post');
+
+      expect(response, null);
+    });
+
+    test('Should return null if post returns 204', () async {
+      mockResponse(204, body: '');
+
+      final response = await sut.request(url: url, method: 'post');
+
+      expect(response, null);
+    });
+
+    test('Should return null if post returns 204 with data', () async {
+      mockResponse(204);
+
+      final response = await sut.request(url: url, method: 'post');
+
+      expect(response, null);
+    });
   });
 }
 
@@ -59,14 +98,13 @@ class HttpAdapter implements HttpClient {
       'content-type': 'application/json',
       'accept': 'application/json',
     };
-
     final jsonBody = body != null ? jsonEncode(body) : null;
+    final response = await client.post(url, headers: headers, body: jsonBody);
 
-    switch (method) {
-      case 'post':
-        client.post(url, headers: headers, body: jsonBody);
-        break;
-      default:
+    if (response.statusCode == 200) {
+      return response.body.isEmpty ? null : jsonDecode(response.body);
+    } else {
+      return null;
     }
   }
 }
